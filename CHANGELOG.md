@@ -4,6 +4,26 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-08-13
+
+Self-audit round 2: product gaps.
+
+### Added
+- **New subcommand `longpath why PATH`** — component-by-component breakdown
+  of where a path's length budget went: cumulative length column, a marker on
+  the component that crosses the budget, and "biggest wins" rename
+  suggestions. Pure string analysis: the path does not have to exist, and a
+  Windows path pasted out of a log can be analysed on Linux/macOS.
+- **`--exclude GLOB`** (repeatable) on `scan` and `check` to skip entries by
+  name, e.g. `--exclude .git --exclude node_modules --exclude '*.tmp'`.
+- `why` participates in the same exit-code contract (0 fits / 1 over / 2 error)
+  and has `--json`.
+
+### Tests
+- 156 tests (+19): why-math for drive/UNC/posix/relative/emoji paths,
+  crossing-marker uniqueness, suggestion ordering, CLI why e2e, exclude
+  behaviour for scan and check.
+
 ## [0.2.0] - 2026-08-13
 
 Self-audit round 1: correctness fixes found by deliberately hunting for bugs.

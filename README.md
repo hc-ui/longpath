@@ -11,7 +11,8 @@ Fix **"path too long"** for good — before *or* after it bites:
 
 - `longpath scan` — find every path that breaks the Windows **260-character MAX_PATH** limit, or *simulate a copy* into a deep destination folder **before** you hit "Destination Path Too Long"
 - `longpath check` — lint a repo/folder for names that break Windows & macOS: reserved names (`CON`, `NUL`, …), illegal characters, trailing dots, case collisions, over-long paths. CI-friendly exit codes
-- `longpath rm` — delete the trees that Explorer, `del`, `rmdir` and `shutil.rmtree` refuse to delete
+- `longpath why` — explain **where** one path's budget went, component by component, with rename suggestions
+- `longpath rm` — delete the trees that Explorer, `del`, `rmdir` and `shutil.rmtree` refuse to delete — including files *named* `con` or ending in a dot
 
 Pure Python standard library. **Zero dependencies.** Works on Windows, Linux and macOS.
 
@@ -44,6 +45,9 @@ longpath scan .\thesis --base "C:\Users\me\OneDrive - University\Documents\Final
 
 # lint this repo for Windows-breaking names (great in CI)
 longpath check .
+
+# where exactly did those 300 characters go, and what should I rename?
+longpath why "D:\deep\path\from\the\scan\report.txt"
 
 # delete what Explorer refuses to delete
 longpath rm D:\stuck\node_modules
@@ -110,7 +114,29 @@ longpath check  /home/me/my-repo
 ...
 ```
 
-Rules: `too-long` · `reserved-name` · `illegal-char` · `trailing-dot-space` · `case-collision` · `unicode-collision` · `component-too-long` · `undecodable-name` — suppress any with `--ignore`.
+Rules: `too-long` · `reserved-name` · `illegal-char` · `trailing-dot-space` · `case-collision` · `unicode-collision` · `component-too-long` · `undecodable-name` — suppress any with `--ignore`, skip vendored folders with `--exclude`.
+
+### `why` — where did the budget go?
+
+```
+$ longpath why "D:\demo\an example folder with a long name\...\node_modules\@example-scope\some-package-name\dist\rules\index.d.ts"
+longpath why  D:\demo\an example folder with a long name\...\index.d.ts
+  218 chars - fits the 259-char budget with 41 to spare
+
+    cum   len  component
+      3     3  D:\
+      7     4  demo
+     42    34  an example folder with a long name
+     68    25  another nested level here
+    ...
+    218    10  index.d.ts
+
+  biggest wins (rename these):
+    'an example folder with a long name' (34 chars) -> saves up to 33
+    'deeply nested subfolder name' (28 chars) -> saves up to 27
+```
+
+The path **does not need to exist** — paste a Windows path out of a log or a CI failure on your Linux box and analyse it there. When a path is over budget, the exact component that crosses the line gets marked.
 
 ### `rm` — delete the undeletable
 
@@ -121,6 +147,7 @@ deleted: D:\stuck\node_modules  (48,211 files, 6,890 dirs)
 ```
 
 - handles paths **far beyond 260 chars** (extended-length `\\?\` API paths — no registry change, no reboot)
+- deletes **cursed names** that Explorer and `del` cannot touch: files literally named `con`/`aux.txt`, or ending in a dot or space (git, WSL and 7-Zip can all drop these onto NTFS)
 - clears the **read-only** attribute when it blocks deletion
 - **never follows symlinks or junctions** — only the link is removed, the target survives (this is the mistake that turns "clean a temp folder" into "wipe your user profile")
 - refuses to delete filesystem roots; `--dry-run` previews; keeps going on errors and reports every failure
@@ -152,24 +179,26 @@ Things almost every blog post gets subtly wrong — `longpath` gets them right:
 ## Python API
 
 ```python
-from longpath import scan_tree, check_tree, rm_path
+from longpath import scan_tree, check_tree, rm_path, why_path
 
 result = scan_tree(r"D:\projects")                     # what's over MAX_PATH?
 for p in result.over:
     print(p.over, p.path)
 
 result = scan_tree("thesis", base=r"C:\Users\me\OneDrive\Documents")   # pre-flight
-issues, stats = check_tree(".", ignore={"too-long"})   # portability lint
+issues, stats = check_tree(".", ignore={"too-long"}, exclude=["node_modules"])
 outcome = rm_path(r"D:\stuck\node_modules")            # delete the undeletable
 print(outcome.ok, outcome.files_removed, outcome.errors)
+breakdown = why_path(r"C:\some\very\deep\path.txt")    # budget breakdown
 ```
 
 ## CLI reference
 
 ```
-longpath scan  [DIR] [--limit N] [--base DEST] [--top N] [--all] [--json] [-q]
-longpath check [DIR] [--limit N] [--base DEST] [--ignore RULES]     [--json] [-q]
-longpath rm    PATH... [-y] [-n/--dry-run]                          [--json] [-q]
+longpath scan  [DIR] [--limit N] [--base DEST] [--top N] [--all] [--exclude GLOB] [--json] [-q]
+longpath check [DIR] [--limit N] [--base DEST] [--ignore RULES] [--exclude GLOB]  [--json] [-q]
+longpath why   PATH  [--limit N]                                                  [--json] [-q]
+longpath rm    PATH... [-y] [-n/--dry-run]                                        [--json] [-q]
 ```
 
 `longpath <dir>` is shorthand for `longpath scan <dir>`. Exit codes: **0** clean · **1** findings · **2** error — so both `scan` and `check` drop straight into CI:
@@ -204,7 +233,8 @@ longpath rm    PATH... [-y] [-n/--dry-run]                          [--json] [-q
 
 - `longpath scan` —— 找出所有超过 Windows **260 字符 MAX_PATH** 限制的路径;还能**预演复制**:先算一遍"拷进那个很深的目标文件夹会不会爆",再动手
 - `longpath check` —— 给仓库/文件夹做 Windows/macOS 兼容性体检:保留名(`CON`、`NUL`…)、非法字符、结尾句点、大小写冲突、超长路径,退出码适配 CI
-- `longpath rm` —— 删除资源管理器、`del`、`rmdir`、`shutil.rmtree` 都删不掉的目录树
+- `longpath why` —— 逐层拆解一条路径的长度预算花在哪,给出"改哪个文件夹名收益最大"
+- `longpath rm` —— 删除资源管理器、`del`、`rmdir`、`shutil.rmtree` 都删不掉的目录树,包括文件名叫 `con`、结尾带句点这类"魔鬼文件"
 
 纯 Python 标准库,**零依赖**,Windows / Linux / macOS 全平台。
 
@@ -238,6 +268,9 @@ longpath scan .\毕业论文 --base "C:\Users\me\OneDrive - 学校\文档\最终
 # 给仓库做兼容性体检(CI 必备)
 longpath check .
 
+# 这条 300 字符的路径,预算到底花在哪了?该改哪个名字?
+longpath why "D:\很深\的\路径\文件.txt"
+
 # 删掉资源管理器删不掉的东西
 longpath rm D:\卡住的\node_modules
 ```
@@ -248,9 +281,11 @@ longpath rm D:\卡住的\node_modules
 
 **`scan --base 目标路径`(复制预演)**:这是别的工具都没有的能力——把整棵树"虚拟拷贝"到目标文件夹再量一遍长度。OneDrive/SharePoint(同步前缀很长,总预算约 400,可配 `--limit 400`)、U 盘交作业、NAS 搬家、解压目标,都能提前算。
 
-**`check`(体检)**:8 条规则——`too-long`(超长)、`reserved-name`(CON/NUL/COM1 等保留名)、`illegal-char`(`< > : " | ? *` 及控制字符)、`trailing-dot-space`(结尾句点/空格)、`case-collision`(仅大小写不同,Windows/macOS 上互相覆盖)、`unicode-collision`(NFC/NFD 同名,mac 常见)、`component-too-long`(单个名字超 255)、`undecodable-name`(非法编码文件名)。`--ignore` 可跳过任意规则。
+**`check`(体检)**:8 条规则——`too-long`(超长)、`reserved-name`(CON/NUL/COM1 等保留名)、`illegal-char`(`< > : " | ? * \` 及控制字符)、`trailing-dot-space`(结尾句点/空格)、`case-collision`(仅大小写不同,Windows/macOS 上互相覆盖)、`unicode-collision`(NFC/NFD 同名,mac 常见)、`component-too-long`(单个名字超 255)、`undecodable-name`(非法编码文件名)。`--ignore` 跳过规则,`--exclude` 跳过 vendored 目录。
 
-**`rm`(强删)**:内部全程使用 `\\?\` 扩展路径(不改注册表、不用重启);自动清只读属性;**绝不跟随符号链接/junction**——只删链接本身,目标完好(这是把"清理临时目录"变成"清空用户资料"的经典事故,我们用真实 junction 测试过);拒绝删除盘符根目录;支持 `--dry-run` 预演;删除中途出错会继续删并汇总报告。
+**`why`(拆解)**:逐组件列出累计长度,标出"预算在哪一层被击穿",并给出改名收益排行("把这个 34 字符的文件夹改短,最多省 33")。纯字符串分析——**路径不需要真实存在**,在 Linux 上也能直接分析日志里贴出来的 Windows 路径。
+
+**`rm`(强删)**:内部全程使用 `\\?\` 扩展路径(不改注册表、不用重启);能删文件名本身就是 `con`、`aux.txt` 或结尾带句点/空格的"魔鬼文件"(git、WSL、7-Zip 都可能在 NTFS 上留下它们,资源管理器对其束手无策);自动清只读属性;**绝不跟随符号链接/junction**——只删链接本身,目标完好(这是把"清理临时目录"变成"清空用户资料"的经典事故,我们用真实 junction 测试过);拒绝删除盘符根目录;支持 `--dry-run` 预演;删除中途出错会继续删并汇总报告。
 
 ## 为什么不用别的?
 

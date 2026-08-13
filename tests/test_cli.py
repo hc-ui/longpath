@@ -269,6 +269,33 @@ def test_scan_direct_long_path_target(tmp_path):
     assert "exceed the budget" in p.stdout
 
 
+def test_scan_exclude(tmp_path):
+    root = tmp_path / "r"
+    mkfile(str(root / "keep" / "a.txt"))
+    mkfile(str(root / "node_modules" / "dep" / "very_long_file_name_here.txt"))
+    p = run_cli("scan", str(root), "--exclude", "node_modules", "--json")
+    data = json.loads(p.stdout)
+    assert data["total_files"] == 1
+    assert data["total_dirs"] == 2  # r + keep
+
+
+def test_check_exclude(tmp_path):
+    root = tmp_path / "r"
+    mkfile(str(root / "vendor" / "file.txt"))
+    mkfile(str(root / "src" / "ok.txt"))
+    limit_probe = run_cli("check", str(root), "--json")
+    assert limit_probe.returncode == 0
+    # force too-long findings only inside vendor, then exclude it
+    from longpath.core import wchar_len as _wl
+
+    limit = _wl(str(root / "vendor")) + 2
+    with_findings = run_cli("check", str(root), "--limit", str(limit))
+    assert with_findings.returncode == 1
+    excluded = run_cli("check", str(root), "--limit", str(limit),
+                       "--exclude", "vendor", "--exclude", "src", "--exclude", "ok.txt")
+    assert excluded.returncode == 0, excluded.stdout
+
+
 def test_scan_base_trailing_quote_artifact(tree):
     # PowerShell: --base "C:\dest\" delivers a literal trailing quote
     p = run_cli("scan", str(tree), "--base", "C:\\dest\"", "--limit", "60")

@@ -20,6 +20,7 @@ from .core import (
     scan_tree,
 )
 from .rm import rm_path
+from .why import why_path
 
 
 def _exists(p: str) -> bool:
@@ -34,7 +35,7 @@ def _exists(p: str) -> bool:
 def _lexists(p: str) -> bool:
     return os.path.lexists(ext_path(p))
 
-_SUBCOMMANDS = {"scan", "check", "rm"}
+_SUBCOMMANDS = {"scan", "check", "rm", "why"}
 
 EXIT_CLEAN = 0
 EXIT_FINDINGS = 1
@@ -51,6 +52,7 @@ examples:
   longpath scan . --base "C:\\Users\\me\\OneDrive\\Documents"
                                             pre-flight: will copying here break?
   longpath check . --json                   portability lint for this repo (CI-friendly)
+  longpath why "D:\\very\\deep\\path\\file.txt"  where did the budget go?
   longpath rm D:\\stuck\\node_modules         delete what Explorer/rmdir cannot
 """
 
@@ -153,6 +155,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_scan.add_argument("--top", type=int, default=20, metavar="N",
                         help="show at most N offending paths (default: 20)")
     p_scan.add_argument("--all", action="store_true", help="show every offending path")
+    p_scan.add_argument("--exclude", action="append", default=[], metavar="GLOB",
+                        help="skip entries whose name matches (repeatable), "
+                             "e.g. --exclude .git --exclude '*.tmp'")
     common(p_scan)
 
     p_check = sub.add_parser(
@@ -170,7 +175,23 @@ def build_parser() -> argparse.ArgumentParser:
                          help="apply the too-long rule as if the tree were copied into DEST")
     p_check.add_argument("--ignore", metavar="RULES", default="",
                          help="comma-separated rules to skip (e.g. too-long,case-collision)")
+    p_check.add_argument("--exclude", action="append", default=[], metavar="GLOB",
+                         help="skip entries whose name matches (repeatable)")
     common(p_check)
+
+    p_why = sub.add_parser(
+        "why",
+        help="explain where one path's length budget went, component by component",
+        description=(
+            "Break a single path down against the budget and show which "
+            "components cost the most. Pure string analysis: the path does "
+            "not have to exist, and Windows paths can be analysed on any OS."
+        ),
+    )
+    p_why.add_argument("path", help="path to analyse (need not exist)")
+    p_why.add_argument("--limit", type=int, default=DEFAULT_LIMIT, metavar="N",
+                       help="path length limit to test against (default: 260)")
+    common(p_why)
 
     p_rm = sub.add_parser(
         "rm",
@@ -228,7 +249,7 @@ def _run_scan(args: argparse.Namespace) -> int:
         return EXIT_ERROR
 
     base = _clean_base(args.base)
-    result = scan_tree(args.dir, limit=args.limit, base=base)
+    result = scan_tree(args.dir, limit=args.limit, base=base, exclude=args.exclude)
     findings = len(result.over) > 0
 
     if args.json:
@@ -297,7 +318,7 @@ def _run_check(args: argparse.Namespace) -> int:
         return EXIT_ERROR
 
     issues, scan = check_tree(args.dir, limit=args.limit, base=_clean_base(args.base),
-                              ignore=ignore)
+                              ignore=ignore, exclude=args.exclude)
 
     if args.json:
         payload = {
@@ -338,6 +359,47 @@ def _run_check(args: argparse.Namespace) -> int:
     _print()
     _print(pal.dim("suppress a rule with --ignore RULE; machine output with --json"))
     return EXIT_FINDINGS
+
+
+# ---------------------------------------------------------------------------
+# why
+# ---------------------------------------------------------------------------
+
+def _run_why(args: argparse.Namespace) -> int:
+    if args.limit < 16:
+        _err("longpath: --limit must be at least 16")
+        return EXIT_ERROR
+
+    result = why_path(args.path, limit=args.limit)
+    over = result.over > 0
+
+    if args.json:
+        _print(json.dumps(result.to_dict(), indent=2, ensure_ascii=True))
+        return EXIT_FINDINGS if over else EXIT_CLEAN
+    if args.quiet:
+        return EXIT_FINDINGS if over else EXIT_CLEAN
+
+    pal = _make_palette(args.no_color)
+    _print(pal.bold(f"longpath why  {displayable(result.path)}"))
+    verdict = (pal.red(f"{result.length} chars - {result.over} OVER the {result.budget}-char budget")
+               if over else
+               pal.green(f"{result.length} chars - fits the {result.budget}-char budget "
+                         f"with {result.budget - result.length} to spare"))
+    _print("  " + verdict)
+    _print()
+    _print(pal.dim("    cum   len  component"))
+    for c in result.components:
+        line = f"  {c.cum:>5} {c.length:>5}  {displayable(c.name)}"
+        if c.crosses:
+            line = pal.red(line + "   <-- budget crossed here")
+        _print(line)
+    if result.suggestions:
+        _print()
+        _print(pal.bold("  biggest wins (rename these):"))
+        for s in result.suggestions:
+            _print(f"    '{s['component']}' ({s['length']} chars) "
+                   + pal.green(f"-> saves up to {s['saves_up_to']}"))
+    return EXIT_FINDINGS if over else EXIT_CLEAN
 
 
 # ---------------------------------------------------------------------------
@@ -424,6 +486,8 @@ def main(argv: Optional[List[str]] = None) -> int:
             return _run_scan(args)
         if args.command == "check":
             return _run_check(args)
+        if args.command == "why":
+            return _run_why(args)
         return _run_rm(args)
     except KeyboardInterrupt:
         _err("longpath: interrupted")

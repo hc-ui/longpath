@@ -25,8 +25,9 @@ from .core import (
     wchar_len,
 )
 from .rm import RmResult, rm_path
+from .why import WhyResult, why_path
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 __all__ = [
     "ALL_RULES",
@@ -35,6 +36,7 @@ __all__ = [
     "OverPath",
     "RmResult",
     "ScanResult",
+    "WhyResult",
     "check_name",
     "check_sibling_names",
     "check_tree",
@@ -44,5 +46,6 @@ __all__ = [
     "scan_tree",
     "unext",
     "wchar_len",
+    "why_path",
     "__version__",
 ]

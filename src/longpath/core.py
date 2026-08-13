@@ -7,12 +7,13 @@ on any OS.
 """
 from __future__ import annotations
 
+import fnmatch
 import os
 import stat
 import sys
 import unicodedata
 from dataclasses import dataclass, field
-from typing import Callable, Iterator, List, Optional, Tuple
+from typing import Callable, Iterable, Iterator, List, Optional, Tuple
 
 WINDOWS = os.name == "nt"
 
@@ -171,11 +172,28 @@ class WalkedDir:
     files: List[str]             # everything else
 
 
-def safe_walk(root: str, on_error: Optional[Callable[[OSError], None]] = None) -> Iterator[WalkedDir]:
+def compile_exclude(patterns: Optional[Iterable[str]]) -> Optional[Callable[[str], bool]]:
+    """Turn glob patterns into a name matcher (case rules follow the OS)."""
+    pats = [p for p in (patterns or []) if p]
+    if not pats:
+        return None
+
+    def match(name: str) -> bool:
+        return any(fnmatch.fnmatch(name, p) for p in pats)
+
+    return match
+
+
+def safe_walk(
+    root: str,
+    on_error: Optional[Callable[[OSError], None]] = None,
+    exclude: Optional[Callable[[str], bool]] = None,
+) -> Iterator[WalkedDir]:
     """Top-down walk that never follows symlinks/junctions and never raises.
 
     *root* should already be :func:`ext_path`-ified by the caller when the
     tree may exceed MAX_PATH. Parents are always yielded before children.
+    Entries whose *name* matches *exclude* are invisible to the walk.
     """
     stack = [root]
     while stack:
@@ -191,6 +209,8 @@ def safe_walk(root: str, on_error: Optional[Callable[[OSError], None]] = None) -
                 on_error(exc)
             continue
         for e in entries:
+            if exclude is not None and exclude(e.name):
+                continue
             try:
                 is_dir = e.is_dir(follow_symlinks=False)
             except OSError:
@@ -264,6 +284,7 @@ class ScanResult:
 def _iter_tree_paths(
     root: str,
     on_error: Optional[Callable[[OSError], None]] = None,
+    exclude: Optional[Callable[[str], bool]] = None,
 ) -> Iterator[Tuple[str, Tuple[str, ...], bool]]:
     """Yield ``(real_path, rel_parts, is_dir)`` for root and everything below.
 
@@ -278,7 +299,7 @@ def _iter_tree_paths(
         yield real_root, (root_name,), False
         return
     yield real_root, (root_name,), True
-    for wd in safe_walk(real_root, on_error=on_error):
+    for wd in safe_walk(real_root, on_error=on_error, exclude=exclude):
         rel = os.path.relpath(wd.path, real_root)
         if rel == ".":
             parts: Tuple[str, ...] = (root_name,)
@@ -297,6 +318,7 @@ def scan_tree(
     *,
     limit: int = DEFAULT_LIMIT,
     base: Optional[str] = None,
+    exclude: Optional[Iterable[str]] = None,
     on_error: Optional[Callable[[OSError], None]] = None,
 ) -> ScanResult:
     """Measure every path under *root* against a MAX_PATH-style budget.
@@ -304,15 +326,18 @@ def scan_tree(
     With *base*, lengths are computed as if *root* itself were copied into
     that destination folder (pre-flight for "Destination Path Too Long",
     OneDrive/SharePoint limits, zip extraction, ...).
+    *exclude* takes glob patterns matched against entry names.
     """
     result = ScanResult(root=os.path.abspath(root), limit=limit, base=base)
+    matcher = compile_exclude(exclude)
 
     def track_error(exc: OSError) -> None:
         result.errors += 1
         if on_error is not None:
             on_error(exc)
 
-    for real, rel_parts, is_dir in _iter_tree_paths(root, on_error=track_error):
+    for real, rel_parts, is_dir in _iter_tree_paths(root, on_error=track_error,
+                                                    exclude=matcher):
         if is_dir:
             result.total_dirs += 1
         else:
@@ -455,13 +480,15 @@ def check_tree(
     limit: int = DEFAULT_LIMIT,
     base: Optional[str] = None,
     ignore: Optional[set] = None,
+    exclude: Optional[Iterable[str]] = None,
     on_error: Optional[Callable[[OSError], None]] = None,
 ) -> Tuple[List[Issue], ScanResult]:
     """Run every portability rule over the tree. Returns (issues, scan stats)."""
     ignore = ignore or set()
     issues: List[Issue] = []
+    matcher = compile_exclude(exclude)
 
-    scan = scan_tree(root, limit=limit, base=base, on_error=on_error)
+    scan = scan_tree(root, limit=limit, base=base, exclude=exclude, on_error=on_error)
     if RULE_TOO_LONG not in ignore:
         for o in scan.over:
             issues.append(Issue(
@@ -472,7 +499,7 @@ def check_tree(
 
     real_root = ext_path(root)
     if os.path.isdir(real_root) and not os.path.islink(root):
-        for wd in safe_walk(real_root):
+        for wd in safe_walk(real_root, exclude=matcher):
             display_dir = unext(wd.path)
             names = wd.subdirs + wd.noenter + wd.files
             for name in names:
