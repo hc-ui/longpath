@@ -142,6 +142,32 @@ def test_junction_root_removes_link_only(tmp_path):
     assert os.path.exists(keep)
 
 
+@pytest.mark.skipif(not WINDOWS, reason="cursed names need \\\\?\\ creation on Windows")
+def test_delete_cursed_names_on_windows(tmp_path):
+    """Files named 'con' or ending in '.' cannot be deleted by Explorer/del;
+    rm must handle them because it always talks \\\\?\\."""
+    root = tmp_path / "cursed"
+    root.mkdir()
+    for cursed in ("con", "aux.txt", "trailing.", "space "):
+        with open(ext_path(str(root / cursed)), "w") as fh:
+            fh.write("x")
+    result = rm_path(str(root))
+    assert result.ok, result.errors
+    assert not root.exists()
+    assert result.files_removed == 4
+
+
+def test_rm_result_to_dict_is_json_safe_with_surrogates():
+    from longpath.rm import RmResult
+
+    r = RmResult(path="bad\udcffpath")
+    r.errors.append(("bad\udcffpath", "boom"))
+    import json
+
+    encoded = json.dumps(r.to_dict(), ensure_ascii=True)
+    assert "boom" in encoded
+
+
 def test_delete_tree_with_unicode_names(tmp_path):
     root = tmp_path / "中文目录😀"
     mkfile(str(root / "期末作业 final.docx"))

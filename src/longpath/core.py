@@ -45,13 +45,14 @@ ALL_RULES = (
 # without an extension) breaks Explorer, cmd.exe and countless programs.
 # Superscript digits are reserved too, per Microsoft's documentation.
 _RESERVED_STEMS = (
-    {"CON", "PRN", "AUX", "NUL"}
+    {"CON", "PRN", "AUX", "NUL", "CONIN$", "CONOUT$"}
     | {f"COM{i}" for i in "123456789"}
     | {f"LPT{i}" for i in "123456789"}
     | {"COM\u00b9", "COM\u00b2", "COM\u00b3", "LPT\u00b9", "LPT\u00b2", "LPT\u00b3"}
 )
 
-_BAD_CHARS = set('<>:"|?*')
+# `\` can occur in POSIX filenames and guarantees breakage on Windows.
+_BAD_CHARS = set('<>:"|?*\\')
 
 
 # ---------------------------------------------------------------------------
@@ -85,14 +86,27 @@ def ext_path(p: str) -> str:
     beyond MAX_PATH regardless of the ``LongPathsEnabled`` policy.
     On other platforms it is simply the absolute path.
     """
-    p = os.path.abspath(p)
     if not WINDOWS:
-        return p
+        return os.path.abspath(p)
     if p.startswith("\\\\?\\"):
         return p
-    if p.startswith("\\\\"):
-        return "\\\\?\\UNC\\" + p[2:]
-    return "\\\\?\\" + p
+    ab = os.path.abspath(p)
+    # os.path.abspath goes through GetFullPathNameW, which silently strips
+    # trailing dots/spaces from the final component ('trailing.' -> 'trailing').
+    # Those names are exactly what this tool must be able to address, so
+    # restore the raw final component when it was damaged.
+    raw = p.replace("/", "\\").rstrip("\\")
+    raw_name = raw.rsplit("\\", 1)[-1] if "\\" in raw else raw
+    ab_name = os.path.basename(ab)
+    if (
+        raw_name not in (".", "..")
+        and raw_name != ab_name
+        and raw_name.rstrip(". ") == ab_name
+    ):
+        ab = os.path.join(os.path.dirname(ab), raw_name)
+    if ab.startswith("\\\\"):
+        return "\\\\?\\UNC\\" + ab[2:]
+    return "\\\\?\\" + ab
 
 
 def unext(p: str) -> str:

@@ -52,7 +52,8 @@ def test_windows_breaking_names_detected_on_posix(tmp_path):
     root.mkdir()
     mkfile(str(root / "CON"))              # reserved
     mkfile(str(root / "notes:v2.txt"))     # illegal colon
-    mkfile(str(root / "draft. "))          # trailing dot+space... rstrip -> both rules? no: trailing rule
+    mkfile(str(root / "back\\slash.txt"))  # backslash breaks Windows
+    mkfile(str(root / "draft. "))          # trailing dot/space
     mkfile(str(root / "ok.txt"))
     issues, _ = check_tree(str(root))
     rules = _rules(issues)
@@ -62,6 +63,24 @@ def test_windows_breaking_names_detected_on_posix(tmp_path):
     # each issue carries the offending path
     paths = {i.path for i in issues}
     assert any(p.endswith("CON") for p in paths)
+    # both the colon file and the backslash file are illegal-char issues
+    assert sum(1 for i in issues if i.rule == RULE_ILLEGAL_CHAR) == 2
+
+
+@pytest.mark.skipif(not WINDOWS, reason="creates cursed names via \\\\?\\ on Windows")
+def test_cursed_names_created_via_ext_path_detected_on_windows(tmp_path):
+    """git/WSL/7-zip can drop 'con' or 'file.' onto NTFS; check must see them."""
+    from longpath.core import ext_path
+
+    root = tmp_path / "repo"
+    root.mkdir()
+    for cursed in ("con", "trailing."):
+        with open(ext_path(str(root / cursed)), "w") as fh:
+            fh.write("x")
+    issues, _ = check_tree(str(root))
+    rules = _rules(issues)
+    assert RULE_RESERVED in rules
+    assert RULE_TRAILING in rules
 
 
 @pytest.mark.skipif(

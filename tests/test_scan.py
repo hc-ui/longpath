@@ -143,6 +143,26 @@ def test_unreadable_dir_counted_as_error(tmp_path):
         secret.chmod(0o755)
 
 
+def test_exact_boundary_length(tmp_path):
+    # budget = limit - 1: a path of exactly `budget` chars is OK,
+    # one more char breaks it.
+    root = str(tmp_path / "b")
+    os.makedirs(root)
+    limit = len(root) + 10
+    budget = limit - 1
+
+    ok_name = "f" * (budget - len(root) - 1)          # root + sep + name == budget
+    over_name = "g" * (budget - len(root))            # one char more
+    mkfile(os.path.join(root, ok_name))
+    mkfile(os.path.join(root, over_name))
+
+    result = scan_tree(root, limit=limit)
+    over_paths = {o.path for o in result.over}
+    assert os.path.join(os.path.abspath(root), over_name) in over_paths
+    assert os.path.join(os.path.abspath(root), ok_name) not in over_paths
+    assert len(result.over) == 1
+
+
 def test_unicode_paths_measured_correctly(tmp_path):
     f = mkfile(str(tmp_path / "课程表😀" / "期末大作业.docx"))
     result = scan_tree(str(tmp_path), limit=10_000)

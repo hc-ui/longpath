@@ -141,6 +141,11 @@ def test_check_ignore_silences(tree):
     assert p.returncode == 0
 
 
+def test_check_limit_too_small_exit_2(tree):
+    p = run_cli("check", str(tree), "--limit", "5")
+    assert p.returncode == 2
+
+
 def test_check_unknown_ignore_rule_exit_2(tree):
     p = run_cli("check", str(tree), "--ignore", "nonsense-rule")
     assert p.returncode == 2
@@ -240,6 +245,35 @@ def test_rm_confirm_prompt_accepts_input(tmp_path):
     # stdin is a pipe, not a tty -> the guard refuses before prompting
     assert p.returncode == 2
     assert (root / "a.txt").exists()
+
+
+def test_rm_direct_long_path_target(tmp_path):
+    """Regression: the CLI existence pre-check must itself be long-path aware,
+    otherwise `longpath rm <300-char path>` says 'does not exist'."""
+    from conftest import make_long_tree
+
+    deep_file = make_long_tree(str(tmp_path / "deep"), target_len=320)
+    assert len(deep_file) > 300
+    p = run_cli("rm", deep_file, "--yes")
+    assert p.returncode == 0, p.stderr
+    assert "deleted" in p.stdout
+
+
+def test_scan_direct_long_path_target(tmp_path):
+    from conftest import make_long_tree
+
+    deep_file = make_long_tree(str(tmp_path / "deep"), target_len=320)
+    deep_dir = os.path.dirname(deep_file)
+    p = run_cli("scan", deep_dir)
+    assert p.returncode == 1  # everything under it is over budget
+    assert "exceed the budget" in p.stdout
+
+
+def test_scan_base_trailing_quote_artifact(tree):
+    # PowerShell: --base "C:\dest\" delivers a literal trailing quote
+    p = run_cli("scan", str(tree), "--base", "C:\\dest\"", "--limit", "60")
+    assert p.returncode in (0, 1)
+    assert "C:\\dest\"" not in p.stdout  # the quote was stripped
 
 
 # ---------------------------------------------------------------------------

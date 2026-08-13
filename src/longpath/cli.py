@@ -15,10 +15,24 @@ from .core import (
     ScanResult,
     check_tree,
     displayable,
+    ext_path,
     long_paths_enabled,
     scan_tree,
 )
 from .rm import rm_path
+
+
+def _exists(p: str) -> bool:
+    """Existence check that still works past 260 chars on Windows.
+
+    A plain os.path.exists() uses the unprefixed path and fails on legacy
+    systems for exactly the paths this tool exists to handle.
+    """
+    return os.path.exists(ext_path(p))
+
+
+def _lexists(p: str) -> bool:
+    return os.path.lexists(ext_path(p))
 
 _SUBCOMMANDS = {"scan", "check", "rm"}
 
@@ -197,15 +211,24 @@ def _policy_lines(pal: Palette) -> List[str]:
     ]
 
 
+def _clean_base(base: Optional[str]) -> Optional[str]:
+    # `--base "C:\dest\"` in PowerShell/cmd turns the trailing \" into a
+    # literal quote; a path cannot legally end in one, so strip it.
+    if base is None:
+        return None
+    return base.rstrip('"')
+
+
 def _run_scan(args: argparse.Namespace) -> int:
-    if not os.path.exists(args.dir):
+    if not _exists(args.dir):
         _err(f"longpath: path does not exist: {args.dir}")
         return EXIT_ERROR
     if args.limit < 16:
         _err("longpath: --limit must be at least 16")
         return EXIT_ERROR
 
-    result = scan_tree(args.dir, limit=args.limit, base=args.base)
+    base = _clean_base(args.base)
+    result = scan_tree(args.dir, limit=args.limit, base=base)
     findings = len(result.over) > 0
 
     if args.json:
@@ -218,8 +241,8 @@ def _run_scan(args: argparse.Namespace) -> int:
     total = result.total_files + result.total_dirs
     _print(pal.bold(f"longpath scan  {displayable(result.root)}"))
     budget_note = f"budget: {result.budget} usable chars (limit {result.limit})"
-    if args.base:
-        budget_note += f"   simulating copy into: {args.base}"
+    if base:
+        budget_note += f"   simulating copy into: {base}"
     _print("  " + budget_note)
     scanned = f"  scanned: {result.total_files:,} files, {result.total_dirs:,} dirs"
     if result.errors:
@@ -259,8 +282,11 @@ def _run_scan(args: argparse.Namespace) -> int:
 # ---------------------------------------------------------------------------
 
 def _run_check(args: argparse.Namespace) -> int:
-    if not os.path.exists(args.dir):
+    if not _exists(args.dir):
         _err(f"longpath: path does not exist: {args.dir}")
+        return EXIT_ERROR
+    if args.limit < 16:
+        _err("longpath: --limit must be at least 16")
         return EXIT_ERROR
 
     ignore = {r.strip() for r in args.ignore.split(",") if r.strip()}
@@ -270,7 +296,8 @@ def _run_check(args: argparse.Namespace) -> int:
         _err(f"          known rules: {', '.join(ALL_RULES)}")
         return EXIT_ERROR
 
-    issues, scan = check_tree(args.dir, limit=args.limit, base=args.base, ignore=ignore)
+    issues, scan = check_tree(args.dir, limit=args.limit, base=_clean_base(args.base),
+                              ignore=ignore)
 
     if args.json:
         payload = {
@@ -326,7 +353,7 @@ def _confirm(prompt: str) -> bool:
 
 
 def _run_rm(args: argparse.Namespace) -> int:
-    missing = [p for p in args.paths if not os.path.lexists(p)]
+    missing = [p for p in args.paths if not _lexists(p)]
     if missing:
         for p in missing:
             _err(f"longpath: path does not exist: {p}")

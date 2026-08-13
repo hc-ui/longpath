@@ -124,6 +124,7 @@ def _rules(name):
     "CON", "con", "Con.txt", "NUL.tar.gz", "PRN", "AUX.log",
     "COM1", "com9.dat", "LPT1", "lpt5.bak", "COM\u00b9",
     "AUX .txt",  # Windows strips trailing spaces from the stem
+    "CONIN$", "conout$.log",
 ])
 def test_reserved_names_flagged(name):
     assert RULE_RESERVED in _rules(name)
@@ -144,6 +145,7 @@ def test_non_reserved_names_pass(name):
     ("pipe|.txt", "|"),
     ("lt<gt>.txt", "<"),
     ("bell\x07.txt", "\\x07"),
+    ("back\\slash.txt", "\\"),
 ])
 def test_illegal_chars_flagged(name, bad):
     problems = dict(check_name(name))

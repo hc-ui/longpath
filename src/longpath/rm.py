@@ -18,7 +18,7 @@ import stat
 from dataclasses import dataclass, field
 from typing import List, Tuple
 
-from .core import WINDOWS, ext_path, safe_walk, unext
+from .core import WINDOWS, displayable, ext_path, safe_walk, unext
 
 
 @dataclass
@@ -32,12 +32,12 @@ class RmResult:
 
     def to_dict(self) -> dict:
         return {
-            "path": self.path,
+            "path": displayable(self.path),
             "ok": self.ok,
             "dry_run": self.dry_run,
             "files_removed": self.files_removed,
             "dirs_removed": self.dirs_removed,
-            "errors": [{"path": p, "error": e} for p, e in self.errors],
+            "errors": [{"path": displayable(p), "error": e} for p, e in self.errors],
         }
 
 
