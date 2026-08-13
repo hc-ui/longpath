@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "longpath"
+dynamic = ["version"]
+description = "Fix 'path too long' for good: scan for paths that break the Windows 260-char limit before they bite, lint repos for Windows-breaking names (CON, case clashes), and delete undeletable trees. Cross-platform, zero dependencies."
+readme = "README.md"
+requires-python = ">=3.9"
+license = "MIT"
+authors = [{ name = "hc-ui" }]
+keywords = [
+    "max_path",
+    "long path",
+    "path too long",
+    "destination path too long",
+    "260 characters",
+    "windows",
+    "delete",
+    "filename too long",
+    "portability",
+    "onedrive",
+    "reserved names",
+    "lint",
+    "ci",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: Microsoft :: Windows",
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Filesystems",
+    "Topic :: Utilities",
+    "Typing :: Typed",
+]
+
+[project.scripts]
+longpath = "longpath.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/hc-ui/longpath"
+Repository = "https://github.com/hc-ui/longpath"
+Issues = "https://github.com/hc-ui/longpath/issues"
+Changelog = "https://github.com/hc-ui/longpath/blob/main/CHANGELOG.md"
+
+[tool.setuptools.dynamic]
+version = { attr = "longpath.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+longpath = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
