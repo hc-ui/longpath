@@ -10,7 +10,6 @@ from __future__ import annotations
 import fnmatch
 import os
 import stat
-import sys
 import unicodedata
 from dataclasses import dataclass, field
 from typing import Callable, Iterable, Iterator, List, Optional, Tuple

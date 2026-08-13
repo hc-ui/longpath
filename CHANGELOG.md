@@ -4,6 +4,22 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.1] - 2026-08-13
+
+Self-audit round 3: final sweep.
+
+### Fixed
+- `why` on Windows now treats forward-slash relative paths (`src/deep/file`)
+  as native and absolutises them; only rooted `/...` strings are analysed as
+  foreign POSIX paths.
+
+### Tests
+- 159 tests (+3 unit, +1 full end-to-end user journey): a messy tree with a
+  320-char branch, read-only files, emoji names, cursed `aux.log`/`report.`
+  files and a junction into precious data goes through
+  scan -> why -> check -> rm --dry-run -> rm --yes, asserting the junction
+  target survives and the tree ends up clean.
+
 ## [0.3.0] - 2026-08-13
 
 Self-audit round 2: product gaps.

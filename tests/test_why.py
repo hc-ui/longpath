@@ -92,6 +92,25 @@ def test_relative_native_path_made_absolute(tmp_path):
         os.chdir(old)
 
 
+def test_relative_forward_slash_path_is_native(tmp_path):
+    """`longpath why src/deep/file` on Windows must be absolutised too."""
+    import os
+
+    old = os.getcwd()
+    os.chdir(str(tmp_path))
+    try:
+        r = why_path("src/deep/file.txt")
+        assert r.length > len("src/deep/file.txt")
+    finally:
+        os.chdir(old)
+
+
+def test_rooted_posix_path_stays_foreign_on_windows():
+    r = why_path("/var/log/app/service.log")
+    assert r.style == "posix"
+    assert r.length == len("/var/log/app/service.log")
+
+
 def test_to_dict_schema():
     d = why_path("C:\\a\\b.txt").to_dict()
     assert {"path", "length", "limit", "budget", "over", "within_budget",

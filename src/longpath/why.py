@@ -64,7 +64,9 @@ def _looks_windows(path: str) -> bool:
         return True
     if len(path) >= 2 and path[1] == ":":
         return True
-    return WINDOWS and "/" not in path
+    # On Windows, `src/deep/file` is still a native path (forward slashes
+    # are accepted); only a rooted "/..." string is treated as foreign.
+    return WINDOWS and not path.startswith("/")
 
 
 def _split(path: str) -> tuple:
