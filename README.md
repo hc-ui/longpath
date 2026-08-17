@@ -1,7 +1,6 @@
 # longpath
 
 [![CI](https://github.com/hc-ui/longpath/actions/workflows/ci.yml/badge.svg)](https://github.com/hc-ui/longpath/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/longpath)](https://pypi.org/project/longpath/)
 [![Python](https://img.shields.io/badge/python-3.9%E2%80%933.14-blue)](https://github.com/hc-ui/longpath)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
@@ -14,11 +13,13 @@ Fix **"path too long"** for good — before *or* after it bites:
 - `longpath why` — explain **where** one path's budget went, component by component, with rename suggestions
 - `longpath rm` — delete the trees that Explorer, `del`, `rmdir` and `shutil.rmtree` refuse to delete — including files *named* `con` or ending in a dot
 
-Pure Python standard library. **Zero dependencies.** Works on Windows, Linux and macOS.
+Pure Python standard library. **Zero dependencies.** Works on Windows, Linux and macOS. Not on PyPI yet:
 
+```bash
+pip install git+https://github.com/hc-ui/longpath.git
 ```
-pip install longpath
-```
+
+Same toolbox: [whoseport](https://github.com/hc-ui/whoseport) · [wholocks](https://github.com/hc-ui/wholocks) · [eoldoctor](https://github.com/hc-ui/eoldoctor)
 
 ## Sound familiar?
 
@@ -204,7 +205,7 @@ longpath rm    PATH... [-y] [-n/--dry-run]                                      
 `longpath <dir>` is shorthand for `longpath scan <dir>`. Exit codes: **0** clean · **1** findings · **2** error — so both `scan` and `check` drop straight into CI:
 
 ```yaml
-- run: pip install longpath && longpath check .
+- run: pip install git+https://github.com/hc-ui/longpath.git && longpath check .
 ```
 
 ## FAQ
@@ -236,10 +237,10 @@ longpath rm    PATH... [-y] [-n/--dry-run]                                      
 - `longpath why` —— 逐层拆解一条路径的长度预算花在哪,给出"改哪个文件夹名收益最大"
 - `longpath rm` —— 删除资源管理器、`del`、`rmdir`、`shutil.rmtree` 都删不掉的目录树,包括文件名叫 `con`、结尾带句点这类"魔鬼文件"
 
-纯 Python 标准库,**零依赖**,Windows / Linux / macOS 全平台。
+纯 Python 标准库，**零依赖**。尚未上 PyPI：
 
-```
-pip install longpath
+```bash
+pip install git+https://github.com/hc-ui/longpath.git
 ```
 
 ## 这些报错眼熟吗?
@@ -310,7 +311,7 @@ longpath rm D:\卡住的\node_modules
 `0` 干净 · `1` 有发现 · `2` 出错。`longpath <目录>` 等价于 `longpath scan <目录>`。三个子命令都有 `--json`(纯 ASCII 转义,任何终端编码下都安全)。
 
 ```yaml
-- run: pip install longpath && longpath check .
+- run: pip install git+https://github.com/hc-ui/longpath.git && longpath check .
 ```
 
 ## 许可
