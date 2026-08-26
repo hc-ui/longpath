@@ -19,6 +19,7 @@ from dataclasses import dataclass, field
 from typing import List, Tuple
 
 from .core import WINDOWS, displayable, ext_path, safe_walk, unext
+from .cwdguard import cwd_delete_reason
 
 
 @dataclass
@@ -96,6 +97,10 @@ def rm_path(path: str, *, dry_run: bool = False) -> RmResult:
     plain = os.path.abspath(path)
     if os.path.dirname(plain) == plain:
         result.errors.append((plain, "refusing to delete a filesystem root"))
+        return result
+    cwd_reason = cwd_delete_reason(plain)
+    if cwd_reason:
+        result.errors.append((plain, cwd_reason))
         return result
 
     real = ext_path(path)
