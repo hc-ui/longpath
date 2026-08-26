@@ -27,7 +27,7 @@ from .core import (
 from .rm import RmResult, rm_path
 from .why import WhyResult, why_path
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 
 __all__ = [
     "ALL_RULES",
