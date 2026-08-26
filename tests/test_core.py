@@ -239,3 +239,11 @@ def test_displayable_replaces_surrogates():
     out = displayable("bad\udcffname")
     assert "\udcff" not in out
     assert "bad" in out and "name" in out
+
+
+def test_py_typed_marker_is_shipped():
+    from pathlib import Path
+
+    import longpath
+
+    assert (Path(longpath.__file__).resolve().parent / "py.typed").is_file()
