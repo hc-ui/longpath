@@ -233,7 +233,7 @@ def _policy_lines(pal: Palette) -> List[str]:
 
 
 def _clean_base(base: Optional[str]) -> Optional[str]:
-    # `--base "C:\dest\"` in PowerShell/cmd turns the trailing \" into a
+    # `--base "C:\\dest\\"` in PowerShell/cmd turns the trailing \\" into a
     # literal quote; a path cannot legally end in one, so strip it.
     if base is None:
         return None
@@ -246,6 +246,9 @@ def _run_scan(args: argparse.Namespace) -> int:
         return EXIT_ERROR
     if args.limit < 16:
         _err("longpath: --limit must be at least 16")
+        return EXIT_ERROR
+    if args.top < 0:
+        _err("longpath: --top must be >= 0")
         return EXIT_ERROR
 
     base = _clean_base(args.base)
@@ -472,7 +475,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         except (AttributeError, OSError):
             pass
 
-    # sugar: `longpath D:\dir` == `longpath scan D:\dir`; bare `longpath` scans .
+    # sugar: `longpath D:\\dir` == `longpath scan D:\\dir`; bare `longpath` scans .
     if not argv:
         argv = ["scan"]
     elif argv[0] not in _SUBCOMMANDS and not argv[0].startswith("-"):
