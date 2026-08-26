@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.2] - 2026-08-26
+
+### Tests
+- Assert `py.typed` stays next to the package so typed installs cannot regress.
+- `test_compileall` keeps a syntax check inside the existing pytest job.
+
 ## [0.3.1] - 2026-08-13
 
 Self-audit round 3: final sweep.
